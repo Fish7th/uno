@@ -3,6 +3,109 @@ import sys
 import random
 import math
 import time
+import socket
+import threading
+
+# 在这里添加您的程序代码
+
+# 这里是一些需要用到的全局变量，您可以根据需要修改它们
+HOST = "127.0.0.1"
+PORT = 8888
+BUFSIZE = 1024
+ADDR = (HOST, PORT)
+server_socket = None
+client_socket = None
+
+# 这里是一个用于启动服务器的函数，它应该在您的 GUI 程序初始化时被调用
+def start_server():
+    global server_socket
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(ADDR)
+    server_socket.listen(1)
+    print("Server is listening on {}:{}".format(HOST, PORT))
+    while True:
+        conn, addr = server_socket.accept()
+        print("Connected by", addr)
+        # 在一个新线程中处理客户端连接
+        threading.Thread(target=handle_client, args=(conn,)).start()
+
+# 这里是一个用于处理客户端连接的函数
+def handle_client(conn):
+    global client_socket, player_turn, message_label
+    client_socket = conn
+    player_turn = False
+    message_label.config(text="Connected to server. Waiting for other player...")
+    while True:
+        data = conn.recv(BUFSIZE)
+        if not data:
+            break
+        message = data.decode("utf-8")
+        print("Received message: ", message)
+        # 根据消息类型调用不同的处理函数
+        if message.startswith("new_game"):
+            on_new_game()
+        elif message.startswith("draw_card"):
+            card = message.split(":")[1]
+            on_opponent_draw_card(card)
+            on_player_turn()
+        elif message.startswith("play_card"):
+            card = message.split(":")[1]
+            on_opponent_play_card(card)
+        elif message.startswith("end_game"):
+            winner = message.split(":")[1]
+            on_end_game(winner)
+
+# 这里是一个用于连接服务器的函数，它应该在您的 GUI 程序中某个按钮的回调函数中被调用
+def connect_to_server():
+    global client_socket, player_turn, message_label
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect(ADDR)
+    player_turn = True
+    message_label.config(text="Connected to server. You go first.")
+    threading.Thread(target=listen_to_server).start()
+
+# 这里是一个用于监听服务器消息的函数，它应该在一个新线程中被启动
+def listen_to_server():
+    global client_socket
+    while True:
+        data = client_socket.recv(BUFSIZE)
+        if not data:
+            break
+        message = data.decode("utf-8")
+        print("Received message: ", message)
+        # 根据消息类型调用不同的处理函数
+        if message.startswith("new_game"):
+            on_new_game()
+            on_player_turn()
+        elif message.startswith("draw_card"):
+            card = message.split(":")[1]
+            on_opponent_draw_card(card)
+            on_player_turn()
+        elif message.startswith("play_card"):
+            card = message.split(":")[1]
+            on_opponent_play_card(card)
+            on_player_turn()
+
+def connect_to_server(ip, port):
+    global client_socket
+    client_socket = socket(AF_INET, SOCK_STREAM)
+    client_socket.connect((ip, port))
+
+def send_message(message):
+    global client_socket
+    message_bytes = message.encode("utf-8")
+    client_socket.sendall(message_bytes)
+
+def init_network_game():
+    ip = input("Enter server IP address: ")
+    port = int(input("Enter server port: "))
+    connect_to_server(ip, port)
+    send_message("new_game")
+
+
+
+
+
 
 class BadInputError(Exception):
     pass
